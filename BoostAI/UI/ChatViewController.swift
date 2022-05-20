@@ -969,18 +969,18 @@ open class ChatViewController: UIViewController {
         let animationDuration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval
         let animationCurve = notification.userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt
         
-        UIView.animate(withDuration: animationDuration ?? 0.25, delay: 0, options: UIView.AnimationOptions(rawValue: animationCurve ?? 0), animations: {
-            self.bottomConstraint.isActive = false
-            
-            let constraint = self.wrapperView.bottomAnchor.constraint(equalTo: self.inputWrapperView.bottomAnchor, constant: keyboardSize.height)
-            constraint.isActive = true
-            self.bottomConstraint = constraint
-            
-            self.feedbackBottomConstraint?.constant = keyboardSize.height
-            
-            self.view.setNeedsLayout()
-            self.view.layoutIfNeeded()
-        })
+//        UIView.animate(withDuration: animationDuration ?? 0.25, delay: 0, options: UIView.AnimationOptions(rawValue: animationCurve ?? 0), animations: {
+//            self.bottomConstraint.isActive = false
+//
+//            let constraint = self.wrapperView.bottomAnchor.constraint(equalTo: self.inputWrapperView.bottomAnchor, constant: keyboardSize.height)
+//            constraint.isActive = true
+//            self.bottomConstraint = constraint
+//
+//            self.feedbackBottomConstraint?.constant = keyboardSize.height
+//
+//            self.view.setNeedsLayout()
+//            self.view.layoutIfNeeded()
+//        })
         
         self.scrollToEnd(animated: true)
     }
@@ -1130,6 +1130,49 @@ extension ChatViewController: ChatResponseViewDelegate {
 
 extension ChatViewController: ChatDialogMenuDelegate {
     
+    public func downloadConversation() {
+            // TODO: Get current user token and send this along
+            backend.download() { [weak self] (apiMessage, error) in
+                DispatchQueue.main.async {
+                    if let error = error {
+                       // self?.displayError(error)
+                        return
+                    }
+                    
+                    // Handle chat downlaod
+                    if let download = apiMessage?.download {
+                        // Create filename based on current date and time
+                        let dateFormatter = DateFormatter()
+                        dateFormatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+                        dateFormatter.calendar = Calendar(identifier: .gregorian)
+                        let dateString = dateFormatter.string(from: Date())
+                        let fileName = "Chat \(dateString).txt"
+                        
+                        do {
+                            // Save chat dialog to a temporary file
+                            let tempFolder = FileManager.default.temporaryDirectory
+                            let tempFile = tempFolder.appendingPathComponent(fileName)
+                            try download.write(to: tempFile, atomically: true, encoding: .utf8)
+                            
+                            // Display an activity sheet to let the user decide how to save/share the file
+                            let activityViewController = UIActivityViewController(activityItems: [tempFile], applicationActivities: nil)
+                            
+                            if let presentingVC = self?.presentingViewController {
+                                presentingVC.dismiss(animated: true) {
+                                    presentingVC.present(activityViewController, animated: true, completion: nil)
+                                }
+                            } else {
+                                self?.present(activityViewController, animated: true, completion: nil)
+                            }
+                            
+                            BoostUIEvents.shared.publishEvent(event: BoostUIEvents.Event.conversationDownloaded, detail: self?.backend.conversationId)
+                        } catch (let error) {
+                           // self?.displayError(error)
+                        }
+                    }
+                }
+            }
+    }
     public func deleteConversation() {
         let existingConversationId = backend.conversationId
         backend.delete(message: nil) { [weak self] (message, error) in
